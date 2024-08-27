@@ -1,7 +1,11 @@
-// into votre elixir
 import { cart } from "wix-stores-frontend";
 
 $w.onReady(function () {
+
+    $w("#text107").hide();
+    $w("#text108").hide();
+    $w("#text109").hide();
+    $w("#text110").hide();
 
     const mapping = [
         { fragrance: "#dropdown1", percentage: "#dropdown5", deleteButton: null },
@@ -25,8 +29,8 @@ $w.onReady(function () {
         visibleDropdowns = addFragrance(visibleDropdowns, mapping);
     });
 
-    setupButton("#button8", "50ml", "Ajouter 50ml");
-    setupButton("#button9", "100ml", "Ajouter 100ml");
+    setupButton("#button8", "50ml", '59,95 CHF', visibleDropdowns);
+    setupButton("#button9", "100ml", "89,95 CHF", visibleDropdowns);
 
     // Configurer les boutons de suppression en utilisant le mapping
     mapping.forEach(item => {
@@ -53,27 +57,81 @@ function showVisibleDropdowns(visibleDropdowns) {
     });
 }
 
-function setupButton(buttonId, size, originalText) {
-    $w(buttonId).onClick(async () => {
-        const button = $w(buttonId);
-        const stopLoader = showLoader(button);
-        
-        try {
-            let values = getFormattedDropdownValues();
-            await addToCart(values, size);
-            button.label = "Ajouté !";
-            button.disable();
-        } catch (error) {
-            console.error('Erreur:', error);
-            button.label = "Erreur";
-        } finally {
-            stopLoader();
-            setTimeout(() => {
-                button.label = originalText;
-                button.enable();
-            }, 2000);
+function setupButton(buttonId, size, originalText, visibleDropdowns) {
+  $w(buttonId).onClick(async () => {
+    const button = $w(buttonId);
+    const stopLoader = showLoader(button);
+
+    try {
+      const formattedValues = getFormattedDropdownValues(visibleDropdowns);
+      const missingIndices = formattedValues.reduce((result, value, index) => {
+        if (!value) {
+          result.push(index + 1);
         }
-    });
+        return result;
+      }, []);
+
+      if (formattedValues.filter(Boolean).length < 2) {
+        $w("#text110").text = "Vous devez choisir au minimum 2 fragrances et leurs pourcentages.";
+        throw new Error("Minimum 2 fragrances required");
+      }
+
+      if (missingIndices.length > 0) {
+        $w("#text107").text = `Des fragrances ou des pourcentages sont manquants. Nº ${missingIndices.join(", ")}`;
+        $w("#text107").show();
+        throw new Error("Missing fragrance or percentage");
+      }
+
+      // Vérification des doublons
+      const fragrances = formattedValues.filter(Boolean).map(value => value.split(" (")[0]);
+      const duplicates = fragrances.filter((item, index) => fragrances.indexOf(item) !== index);
+      if (duplicates.length > 0) {
+        $w("#text110").text = `Erreur : Fragrance(s) en double détectée(s) : ${duplicates.join(", ")}`;
+        $w("#text110").show();
+        throw new Error("Duplicate fragrances detected");
+      }
+
+      const totalPercentage = formattedValues
+        .filter(Boolean)
+        .reduce((total, value) => {
+          const percentage = parseInt(value.split("(")[1]);
+          return isNaN(percentage) ? total : total + percentage;
+        }, 0);
+
+      if (totalPercentage !== 100) {
+        $w("#text109").text = `Le total doit être égal à 100%. Votre total: ${totalPercentage}%`;
+        $w("#text109").show();
+        throw new Error("Total percentage must be 100%");
+      }
+
+      await addToCart(formattedValues.filter(Boolean), size);
+      button.label = "Ajouté !";
+      button.disable();
+    } catch (error) {
+      console.error('Erreur:', error);
+      if (error.message === "Minimum 2 fragrances required") {
+        $w("#text110").show();
+      } else if (error.message === "Total percentage must be 100%") {
+        $w("#text109").show();
+      } else if (error.message === "Missing fragrance or percentage") {
+        $w("#text107").show();
+      } else if (error.message === "Duplicate fragrances detected") {
+        // Ne rien faire ici car l'erreur est déjà affichée
+      } else {
+        $w("#text108").show();
+      }
+    } finally {
+      stopLoader();
+      setTimeout(() => {
+        button.label = originalText;
+        button.enable();
+        $w("#text107").hide();
+        $w("#text108").hide();
+        $w("#text109").hide();
+        $w("#text110").hide();
+      }, 4000);
+    }
+  });
 }
 
 function showLoader(button) {
@@ -90,20 +148,17 @@ function showLoader(button) {
     };
 }
 
-function getFormattedDropdownValues() {
-    let formattedValues = [];
-    for (let i = 1; i <= 4; i++) {
-        const fragrance = $w(`#dropdown${i}`).value;
-        const concentration = $w(`#dropdown${i+4}`).value;
-        if (fragrance && concentration) {
-            formattedValues.push(`${fragrance} (${concentration})`);
-        }
-    }
-    return formattedValues.join(', ');
+function getFormattedDropdownValues(visibleDropdowns) {
+  return visibleDropdowns.map(({ fragrance, percentage }) => {
+    const fragranceValue = $w(fragrance).value;
+    const percentageValue = $w(percentage).value;
+    return fragranceValue && percentageValue ? `${fragranceValue} (${percentageValue})` : null;
+  });
 }
 
 async function addToCart(formattedValues, size) {
-    const productId = "ff3055a8-8c74-0bc1-f8b2-58776fbdbaa8";
+    console.log(formattedValues)
+    const productId = "794782b0-87b4-7bc7-5337-8a9e1dc1531f";
     const products = [
         {
             productId: productId,
@@ -116,8 +171,8 @@ async function addToCart(formattedValues, size) {
     ];
 
     try {
+        console.log(products)
         const updatedCart = await cart.addProducts(products);
-        const cartLineItems = updatedCart.lineItems;
     } catch (error) {
         console.error('Erreur lors de l\'ajout au panier:', error);
         throw error;
