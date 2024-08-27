@@ -67,6 +67,13 @@ function validateDropdowns(values) {
         return false;
     }
     
+    // Vérifier les doublons
+    const uniqueValues = new Set(values);
+    if (uniqueValues.size !== values.length) {
+        showError("Vous ne pouvez pas choisir le même échantillon plusieurs fois.", "#text110");
+        return false;
+    }
+    
     return true;
 }
 
@@ -87,7 +94,7 @@ function showError(message, elementId) {
     
     errorTimer = setTimeout(() => {
         $w(elementId).hide();
-    }, 2000); // Le message d'erreur disparaîtra après 5 secondes
+    }, 4000); // Le message d'erreur disparaîtra après 4 secondes
 }
 
 async function addToCart(values) {
